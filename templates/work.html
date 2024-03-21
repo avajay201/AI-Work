@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="en">
-{% load static %}
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -52,7 +51,17 @@
 
         #res-txt {
             display: none;
-            width: 75%;
+            width: 52%;
+        }
+
+        pre {
+            background: black;
+            color: white;
+        }
+
+        #prompt-audio {
+            display: none;
+            width: 20%;
         }
 
         .lds-roller {
@@ -235,10 +244,23 @@
                 <input class="mx-3" type="radio" id="ai-opt-2" name="ai-opt" />
                 Image-Generation
             </label>
+            <label>
+                <input class="mx-3" type="radio" id="ai-opt-3" name="ai-opt" />
+                Text2Audio-Generation
+            </label>
+            <label>
+                <input class="mx-3" type="radio" id="ai-opt-4" name="ai-opt" />
+                Audio2Text-Generation
+            </label>
+            <label>
+                <input class="mx-3" type="radio" id="ai-opt-5" name="ai-opt" />
+                Sentiment-Analyzer
+            </label>
         </div>
         <div class="ai-work">
             {% csrf_token %}
             <input id="prompt" />
+            <input type="file" accept="audio/mpeg" id="prompt-audio" />
             <span>
                 <svg xmlns="http://www.w3.org/2000/svg" width="30" id="gen-res" height="30" fill="currentColor"
                     class="bi bi-send" viewBox="0 0 16 16">
@@ -247,7 +269,8 @@
                 </svg>
             </span>
         </div>
-        <div class="res my-3">
+        <hr>
+        <div class="res my-4" id="res">
             <div class="lds-roller">
                 <div></div>
                 <div></div>
@@ -265,24 +288,89 @@
                     <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708z"/>
                 </svg>
             </div>
-            <div class="text-center" id="res-txt"></div>
+            <div class="text-start" id="res-txt"></div>
         </div>
     </main>
     <footer></footer>
     <script src="https://code.jquery.com/jquery-3.7.1.js"
         integrity="sha256-eKhayi8LEQwp4NKxN+CfCh+3qOVUtJn3QNZ0TciWLP4=" crossorigin="anonymous"></script>
     <script>
-        $('#gen-res').on('click', function () {
+        $('#prompt').on('keyup', function(event){
+            if (event.key === 'Enter'){
+                $('#gen-res').click();
+            }
+        });
+
+        $('#ai-opt-1, #ai-opt-2, #ai-opt-3, #ai-opt-5').on('click', function(){
             clearFields();
+            $('#prompt-audio').css('display', 'none');
+            $('#prompt').css('display', 'block');
+        });
+
+        $('#ai-opt-4').on('click', function(){
+            clearFields();
+            $('#prompt-audio').css('display', 'block');
+            $('#prompt').css('display', 'none');
+        });
+
+        function audio2Text(){
+            var formData = new FormData();
+            let csrfmiddlewaretoken = $('input[name=csrfmiddlewaretoken]').val();
+            formData.append('prompt', prompt);
+            formData.append('type', 'a2t');
+            formData.append('csrfmiddlewaretoken', csrfmiddlewaretoken);
+            $.ajax({
+                url: 'gen-res/',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function(response) {
+                    $('#res-txt').removeClass('text-start').addClass('text-center');
+                    $('.lds-roller').css('display', 'none');
+                    $('#res-txt').css('display', 'block');
+                    let res_txt = response.content;
+                    $('#res-txt').html(res_txt);
+                    $('#gen-res').css('pointer-events', 'auto');
+                    $('#prompt-audio').val('')
+                    $(this).css('pointer-events', 'auto');
+                },
+                error: function(error) {
+                    alert('Something went wrong, please try again.');
+                    clearFields();
+                }
+            });
+        };
+
+        $('#gen-res').on('click', function () {
             let ai1 = $('#ai-opt-1')[0].checked;
             let ai2 = $('#ai-opt-2')[0].checked;
-            if (!ai1 && !ai2) {
+            let ai3 = $('#ai-opt-3')[0].checked;
+            let ai4 = $('#ai-opt-4')[0].checked;
+            let ai5 = $('#ai-opt-5')[0].checked;
+            if (!ai1 && !ai2 && !ai3 && !ai4 && !ai5) {
+                alert('Please select an ai option.');
                 return;
             }
+            if (ai4){
+                let prompt = $('#prompt-audio')[0].files[0];
+                if (!prompt || !prompt.name.includes('mp3')) {
+                    alert('Please select an audio file.');
+                    return;
+                };
+                $('.lds-roller').css('display', 'inline-block');
+                $(this).css('pointer-events', 'none');
+                audio2Text(prompt);
+                return;
+            }
+
             let prompt = $('#prompt').val().trim();
             if (!prompt) {
+                $('#prompt').val('');
+                alert('Please enter a prompt.');
                 return;
-            }
+            };
+            clearFields();
 
             $('#prompt').val('');
             $(this).css('pointer-events', 'none');
@@ -290,11 +378,20 @@
             if (ai1) {
                 ai_type = 'text';
                 $('.lds-roller').css('display', 'inline-block');
-            }
-            else {
+            };
+            if (ai2){
                 ai_type = 'img';
                 $('.lds-ripple').css('display', 'inline-block');
-            }
+            };
+            if (ai3){
+                ai_type = 'audio';
+                $('.lds-roller').css('display', 'inline-block');
+            };
+            if (ai5){
+                ai_type = 'sa';
+                $('.lds-roller').css('display', 'inline-block');
+            };
+
             let csrfmiddlewaretoken = $('input[name=csrfmiddlewaretoken]').val();
             let data = { type: ai_type, prompt: prompt, csrfmiddlewaretoken: csrfmiddlewaretoken }
             $.ajax({
@@ -313,10 +410,30 @@
                             $('#gen-img').attr('src', img_url);
                             $('.res-img').css('display', 'block');
                         }
+                        else if (ai_type == 'audio'){
+                            let audio_url = response.content;
+                            let audio_name = response.audio_name;
+                            var audioElement = document.createElement('audio');
+                            audioElement.setAttribute('controls', 'controls');
+                            var sourceElement = document.createElement('source');
+                            sourceElement.setAttribute('id', 'res-audio');
+                            sourceElement.setAttribute('src', audio_url);
+                            sourceElement.setAttribute('type', 'audio/mpeg');
+                            audioElement.appendChild(sourceElement);
+                            document.getElementById('res').appendChild(audioElement);
+                        }
+                        else if (ai_type === 'sa'){
+                            $('#res-txt').removeClass('text-start').addClass('text-center');
+                            $('#res-txt').css('display', 'block');
+                            let res_txt = response.content;
+                            $('#res-txt').html(res_txt);
+                        }
                         else{
                             $('#res-txt').css('display', 'block');
-                            let res_txt = response.content
-                            typeResponse(res_txt);
+                            let res_txt = response.content;
+                            const formated_text = formateResponse(res_txt);
+                            // typeResponse(html);
+                            $('#res-txt').html(formated_text);
                         }
                         $('#gen-res').css('pointer-events', 'auto');
                         return;
@@ -330,6 +447,10 @@
                         typeResponse('I am sorry, I am not able to answer your query at this time. Please try again.');
                     }
                     $('#gen-res').css('pointer-events', 'auto');
+                },
+                error: function(error) {
+                    alert('Something went wrong, please try again.');
+                    clearFields();
                 }
             });
         });
@@ -346,8 +467,11 @@
             $('#res-txt').text('');
             $('#res-txt').css('display', 'none');
             $('#gen-img').attr('src', '');
+            $('audio').remove();
+            $('#prompt-audio').val('');
             $('.res-img').css('display', 'none');
-        }
+            $('#res-txt').removeClass('text-center').addClass('text-start');
+        };
 
         $('#download-img').on('click', function(){
             let img = $(this).attr('data-img');
@@ -356,7 +480,21 @@
                 let url = 'download-img/' + img_name;
                 window.open(url, "_blank");
             }
-        })
+        });
+
+        function formateResponse(res_text){
+            let multi_text = res_text.split('```');
+            let formated_data = [];
+            for (let i = 0; i < multi_text.length; i++){
+                if  (i % 2 == 0){
+                    formated_data.push(`<p>${multi_text[i]}</p>`);
+                }
+                else {
+                    formated_data.push(`<pre><code class="language-python">${multi_text[i]}\n</code></pre>`);
+                }
+            };
+            return formated_data;
+        };
     </script>
 </body>
 
